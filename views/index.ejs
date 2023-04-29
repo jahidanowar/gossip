@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ"
+      crossorigin="anonymous"
+    />
+    <script src="/socket.io/socket.io.js"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-ENjdO4Dr2bkBIFxQpeoTz1HIcje39Wm4jDKdf19U8gI4ddQ3GYNS7NTKfAdVQSZe"
+      crossorigin="anonymous"
+    ></script>
+    <title>Anonymous Gossip</title>
+
+    <style>
+      .chat-bubble-left {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-start;
+        margin-bottom: 10px;
+        position: relative;
+      }
+      .chat-bubble-content {
+        border-radius: 10px;
+        padding: 10px;
+        margin-left: 10px;
+        position: relative;
+        color: white;
+      }
+
+      .chat-bubble-left .chat-bubble-content {
+        background-color: #965afc;
+      }
+
+      .chat-bubble-left::after {
+        content: "";
+        position: absolute;
+        width: 0;
+        height: 0;
+        border-top: 10px solid transparent;
+        border-bottom: 10px solid transparent;
+        border-right: 10px solid #965afc;
+        bottom: 10px;
+      }
+
+      .chat-bubble-right {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+        margin-bottom: 10px;
+        position: relative;
+      }
+      .chat-bubble-right .chat-bubble-content {
+        background-color: #0abf83;
+      }
+
+      .chat-bubble-right::after {
+        content: "";
+        position: absolute;
+        width: 0;
+        height: 0;
+        border-top: 10px solid transparent;
+        border-bottom: 10px solid transparent;
+        border-left: 10px solid #0abf83;
+        bottom: 10px;
+        right: -10px;
+      }
+      .alert.sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        border-radius: 0.2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="mt-5">
+        <div class="row justify-content-center">
+          <div class="col-lg-6">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="text-center">anonymous gossip 🤪</h3>
+                <pre id="status" class="text-center"></pre>
+              </div>
+              <div class="card-body"></div>
+              <div class="card-footer">
+                <form id="form" action="/">
+                  <div class="input-group mb-3">
+                    <input
+                      id="messageInput"
+                      type="text"
+                      class="form-control"
+                      placeholder="express yourself"
+                      aria-label="gossip"
+                      aria-describedby="button-addon2"
+                    />
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const status = document.getElementById("status");
+      const form = document.getElementById("form");
+      const messageInput = document.getElementById("messageInput");
+
+      // Audios
+      const userConnectedAudio = new Audio("/sounds/invite_ms.mp3");
+      const chatMessageAudio = new Audio("/sounds/facebookchat.mp3");
+
+      const socket = io();
+
+      function addSelfMessage(message) {
+        const chatBubble = document.createElement("div");
+        chatBubble.classList.add("chat-bubble-right");
+        const chatBubbleContent = document.createElement("div");
+        chatBubbleContent.classList.add("chat-bubble-content");
+        chatBubbleContent.innerText = message;
+        chatBubble.appendChild(chatBubbleContent);
+        const chatBody = document.querySelector(".card-body");
+        chatBody.appendChild(chatBubble);
+        chatMessageAudio.play();
+      }
+
+      function addBroadcastMessage(message) {
+        const chatBubble = document.createElement("div");
+        chatBubble.classList.add("chat-bubble-left");
+        const chatBubbleContent = document.createElement("div");
+        chatBubbleContent.classList.add("chat-bubble-content");
+        chatBubbleContent.innerText = message;
+        chatBubble.appendChild(chatBubbleContent);
+        const chatBody = document.querySelector(".card-body");
+        chatBody.appendChild(chatBubble);
+        chatMessageAudio.play();
+      }
+
+      socket.on("connect", () => {
+        console.log("connected");
+        status.innerText = "connected";
+        status.style.color = "green";
+        socket.emit("user-connected");
+        // Emit message
+        form.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const message = messageInput.value;
+          socket.emit("chat-message", message);
+          // Add message to chat
+          addSelfMessage(message);
+          messageInput.value = "";
+        });
+
+        // Listen for messages
+        socket.on("chat-message", (message) => {
+          console.log({ message });
+          addBroadcastMessage(message);
+        });
+
+        socket.on("user-connected", (message) => {
+          console.log({ message });
+
+          // Play audio
+          userConnectedAudio.play();
+
+          // add dismisable alert
+          const alert = document.createElement("div");
+          alert.classList.add(
+            "alert",
+            "alert-success",
+            "alert-dismissible",
+            "fade",
+            "show",
+            "sm"
+          );
+          alert.setAttribute("role", "alert");
+          alert.innerText = message;
+          const button = document.createElement("button");
+
+          const chatBody = document.querySelector(".card-body");
+          chatBody.appendChild(alert);
+
+          // dismiss alert after 2 seconds
+          setTimeout(() => {
+            alert.remove();
+          }, 2000);
+        });
+      });
+
+      socket.on("disconnect", () => {
+        console.log("disconnected");
+        status.innerText = "disconnected";
+        status.style.color = "red";
+      });
+    </script>
+  </body>
+</html>
